@@ -5,6 +5,7 @@ import socket
 import sys
 import threading
 from contextlib import closing
+
 import psycopg2
 from flask import Flask, jsonify, request
 
@@ -13,10 +14,10 @@ REGNO = os.getenv("REGNO", "NOT-SET")
 APP_VERSION = os.getenv("APP_VERSION", "dev")
 
 TABLE_SQL = """CREATE TABLE IF NOT EXISTS registrations (
-    id SERIAL PRIMARY KEY,
-    name TEXT NOT NULL,
-    event TEXT NOT NULL,
-    created TIMESTAMPTZ NOT NULL DEFAULT now())"""
+  id SERIAL PRIMARY KEY,
+  name TEXT NOT NULL,
+  event TEXT NOT NULL,
+  created TIMESTAMPTZ NOT NULL DEFAULT now())"""
 _table_lock = threading.Lock()
 _table_ready = False
 
@@ -56,30 +57,16 @@ def health():
         database = True
     except psycopg2.Error:
         database = False
-    return jsonify(
-        service="festpass-backend",
-        regno=REGNO,
-        version=APP_VERSION,
-        container=socket.gethostname(),
-        database=database,
-    )
+    return jsonify(service="festpass-backend", regno=REGNO,
+                   version=APP_VERSION,
+                   container=socket.gethostname(), database=database)
 
 
 @app.get("/api/registrations")
 def list_registrations():
-    rows = run_sql(
-        "SELECT id, name, event, created FROM registrations ORDER BY id",
-        fetch=True,
-    )
-    return jsonify([
-        {
-            "id": i,
-            "name": n,
-            "event": e,
-            "created": c.isoformat(timespec="seconds"),
-        }
-        for i, n, e, c in rows
-    ])
+    rows = run_sql("SELECT id, name, event, created FROM registrations ORDER BY id", fetch=True)
+    return jsonify([{"id": i, "name": n, "event": e, "created": c.isoformat(timespec="seconds")}
+                    for i, n, e, c in rows])
 
 
 @app.post("/api/registrations")
@@ -89,11 +76,8 @@ def add_registration():
     event = str(data.get("event", "")).strip()
     if not name or not event:
         return jsonify(error="name and event are required"), 400
-    new_id = run_sql(
-        "INSERT INTO registrations (name, event) VALUES (%s, %s) RETURNING id",
-        (name, event),
-        fetch=True,
-    )[0][0]
+    new_id = run_sql("INSERT INTO registrations (name, event) VALUES (%s, %s) RETURNING id",
+                     (name, event), fetch=True)[0][0]
     return jsonify(id=new_id, name=name, event=event), 201
 
 
